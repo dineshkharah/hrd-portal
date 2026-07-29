@@ -71,6 +71,24 @@ export async function DELETE(
   if (!user?.id || user.role !== "HRD") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  await prisma.eventFeedbackForm.delete({ where: { id: params.id } });
+  // Submissions don't cascade from the form, and responses don't cascade from
+  // the question — so a form with any answered submission can't be deleted
+  // directly. Tear the tree down bottom-up in one transaction.
+  const submissionIds = (
+    await prisma.eventFeedbackSubmission.findMany({
+      where: { formId: params.id },
+      select: { id: true },
+    })
+  ).map((s) => s.id);
+
+  await prisma.$transaction([
+    prisma.eventFeedbackResponse.deleteMany({
+      where: { submissionId: { in: submissionIds } },
+    }),
+    prisma.eventFeedbackSubmission.deleteMany({ where: { formId: params.id } }),
+    prisma.eventFeedbackQuestion.deleteMany({ where: { formId: params.id } }),
+    prisma.eventFeedbackForm.delete({ where: { id: params.id } }),
+  ]);
+
   return NextResponse.json({ ok: true });
 }

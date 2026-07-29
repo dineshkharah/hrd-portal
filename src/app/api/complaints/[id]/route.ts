@@ -99,6 +99,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await prisma.complaint.delete({ where: { id: params.id } });
+  // ComplaintHistory rows have no ON DELETE CASCADE in the schema, and every
+  // complaint gets a history row the moment it is submitted — so deleting the
+  // complaint directly always fails on the foreign key. Clear the children in
+  // the same transaction.
+  await prisma.$transaction([
+    prisma.complaintHistory.deleteMany({ where: { complaintId: params.id } }),
+    prisma.complaint.delete({ where: { id: params.id } }),
+  ]);
   return NextResponse.json({ ok: true });
 }

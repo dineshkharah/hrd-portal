@@ -63,6 +63,11 @@ export async function PATCH(
       return NextResponse.json({ error: "That slot is already blocked" }, { status: 409 });
     }
 
+    const club = await prisma.club.findUnique({
+      where: { id: request.clubId },
+      select: { name: true },
+    });
+
     await prisma.$transaction(async (tx) => {
       await tx.orientationRequest.update({
         where: { id: params.id },
@@ -74,13 +79,22 @@ export async function PATCH(
         },
       });
 
+      // If this request was already scheduled somewhere else, free that slot.
+      await tx.blockedDate.deleteMany({
+        where: { requestId: params.id, NOT: { date, timePeriod: scheduledTime } },
+      });
+
       await tx.blockedDate.upsert({
         where: { date_timePeriod: { date, timePeriod: scheduledTime } },
-        update: { requestId: params.id, isManual: false },
+        update: {
+          requestId: params.id,
+          isManual: false,
+          label: `Orientation — ${club?.name ?? "Unknown club"}`,
+        },
         create: {
           date,
           timePeriod: scheduledTime,
-          label: `Orientation — ${request.clubId}`,
+          label: `Orientation — ${club?.name ?? "Unknown club"}`,
           isManual: false,
           requestId: params.id,
         },
@@ -91,15 +105,20 @@ export async function PATCH(
   }
 
   if (action === "reject") {
-    await prisma.orientationRequest.update({
-      where: { id: params.id },
-      data: {
-        status: "rejected",
-        rejectionReason: rejectionReason ?? null,
-        scheduledDate: null,
-        scheduledTime: null,
-      },
-    });
+    await prisma.$transaction([
+      prisma.orientationRequest.update({
+        where: { id: params.id },
+        data: {
+          status: "rejected",
+          rejectionReason: rejectionReason ?? null,
+          scheduledDate: null,
+          scheduledTime: null,
+        },
+      }),
+      // Rejecting an already-approved request must release the calendar slot,
+      // otherwise it stays blocked with no request behind it.
+      prisma.blockedDate.deleteMany({ where: { requestId: params.id } }),
+    ]);
     return NextResponse.json({ ok: true });
   }
 
@@ -144,6 +163,23 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await prisma.orientationRequest.delete({ where: { id: params.id } });
+  // None of these children cascade in the schema, so they have to go first or
+  // the delete fails on a foreign key. BlockedDate.requestId isn't a real FK,
+  // but leaving it behind would keep that calendar slot blocked forever.
+  const feedback = await prisma.feedbackSubmission.findUnique({
+    where: { requestId: params.id },
+    select: { id: true },
+  });
+
+  await prisma.$transaction([
+    ...(feedback
+      ? [prisma.feedbackResponse.deleteMany({ where: { submissionId: feedback.id } })]
+      : []),
+    prisma.feedbackSubmission.deleteMany({ where: { requestId: params.id } }),
+    prisma.orientationAnswer.deleteMany({ where: { requestId: params.id } }),
+    prisma.blockedDate.deleteMany({ where: { requestId: params.id } }),
+    prisma.orientationRequest.delete({ where: { id: params.id } }),
+  ]);
+
   return NextResponse.json({ ok: true });
 }

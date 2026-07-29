@@ -34,6 +34,11 @@ export async function DELETE(
   const user = session?.user as { role?: string } | undefined;
   if (!user || user.role !== "HRD") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await prisma.eventFeedbackQuestion.delete({ where: { id: params.qid } });
+  // Responses reference the question without a cascade, so an already-answered
+  // question can't be deleted until its answers are removed.
+  await prisma.$transaction([
+    prisma.eventFeedbackResponse.deleteMany({ where: { questionId: params.qid } }),
+    prisma.eventFeedbackQuestion.delete({ where: { id: params.qid } }),
+  ]);
   return NextResponse.json({ ok: true });
 }
