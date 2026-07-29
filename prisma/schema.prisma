@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  HRD
+  DEC
+  DRR
+  CLUB
+  DCM
+}
+
+enum PerformanceCategory {
+  elite
+  performing
+  underperforming
+}
+
+enum OrientationType {
+  core_member
+  bod
+  everyone
+}
+
+enum OrientationStatus {
+  requested
+  rejected
+  scheduled
+  conducted
+  feedback_submitted
+  certificate_generated
+}
+
+enum TimePeriod {
+  morning
+  afternoon
+  evening
+}
+
+// ─── DCM Performance Tracking Models ─────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          Role
+  avenueId      String?
+  clubId        String?
+  dcmRecordId   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  avenue               Avenue?                   @relation(fields: [avenueId], references: [id])
+  club                 Club?                     @relation(fields: [clubId], references: [id])
+  dcmRecord            Dcm?                      @relation("UserDcmRecord", fields: [dcmRecordId], references: [id])
+  evaluations          Evaluation[]
+  quarterlyAudits      QuarterlyAudit[]
+  complaints           Complaint[]               @relation("ComplaintSubmitter")
+  complaintHistories   ComplaintHistory[]        @relation("ComplaintHistoryUpdater")
+  notifications        Notification[]
+  feedbackSubmissions  EventFeedbackSubmission[] @relation("FeedbackSubmitter")
+}
+
+model Avenue {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  displayOrder Int
+  param6Label  String
+  param7Label  String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  users User[]
+  dcms  Dcm[]
+}
+
+model Dcm {
+  id        String   @id @default(cuid())
+  name      String
+  title     String
+  avenueId  String
+  isActive  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  avenue          Avenue           @relation(fields: [avenueId], references: [id])
+  evaluations     Evaluation[]
+  quarterlyAudits QuarterlyAudit[]
+  dcmUsers        User[]           @relation("UserDcmRecord")
+}
+
+model Evaluation {
+  id          String   @id @default(cuid())
+  dcmId       String
+  periodMonth Int
+  periodYear  Int
+  evaluatorId String
+  p1          Int
+  p2          Int
+  p3          Int
+  p4          Int
+  p5          Int
+  p6          Int
+  p7          Int
+  rawScore    Int
+  remarks     String?
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  dcm       Dcm  @relation(fields: [dcmId], references: [id])
+  evaluator User @relation(fields: [evaluatorId], references: [id])
+
+  @@unique([dcmId, periodMonth, periodYear])
+}
+
+model QuarterlyAudit {
+  id                  String              @id @default(cuid())
+  dcmId               String
+  quarter             Int
+  year                Int
+  monthsAvailable     Int
+  monthlyScores       Json
+  quarterlyAvg        Float
+  adjustment          Int
+  finalScore          Float
+  finalPercentage     Float
+  performanceCategory PerformanceCategory
+  remarks             String
+  auditorId           String
+  createdAt           DateTime            @default(now())
+
+  dcm     Dcm  @relation(fields: [dcmId], references: [id])
+  auditor User @relation(fields: [auditorId], references: [id])
+
+  @@unique([dcmId, quarter, year])
+}
+
+model DistrictSettings {
+  id          String   @id @default("singleton")
+  activeMonth Int
+  activeYear  Int
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Orientation Module Models ────────────────────────────────────────────────
+
+model Club {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users    User[]
+  requests OrientationRequest[]
+}
+
+model OrientationQuestion {
+  id              String          @id @default(cuid())
+  orientationType OrientationType
+  questionText    String
+  displayOrder    Int
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  answers OrientationAnswer[]
+}
+
+model FeedbackQuestion {
+  id           String   @id @default(cuid())
+  questionText String
+  displayOrder Int
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  responses FeedbackResponse[]
+}
+
+model OrientationRequest {
+  id                   String            @id @default(cuid())
+  clubId               String
+  orientationType      OrientationType
+  status               OrientationStatus @default(requested)
+  expectedAttendance   Int
+
+  preferredDate1       DateTime          @db.Date
+  preferredTime1       TimePeriod
+  preferredDate2       DateTime          @db.Date
+  preferredTime2       TimePeriod
+  preferredDate3       DateTime          @db.Date
+  preferredTime3       TimePeriod
+
+  scheduledDate        DateTime?         @db.Date
+  scheduledTime        TimePeriod?
+  rejectionReason      String?
+  certificateGenerated Boolean           @default(false)
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  club     Club                @relation(fields: [clubId], references: [id])
+  answers  OrientationAnswer[]
+  feedback FeedbackSubmission?
+}
+
+model OrientationAnswer {
+  id         String @id @default(cuid())
+  requestId  String
+  questionId String
+  answerText String
+
+  request  OrientationRequest  @relation(fields: [requestId], references: [id])
+  question OrientationQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([requestId, questionId])
+}
+
+model FeedbackSubmission {
+  id          String   @id @default(cuid())
+  requestId   String   @unique
+  submittedAt DateTime @default(now())
+
+  request   OrientationRequest @relation(fields: [requestId], references: [id])
+  responses FeedbackResponse[]
+}
+
+model FeedbackResponse {
+  id           String @id @default(cuid())
+  submissionId String
+  questionId   String
+  answerText   String
+
+  submission FeedbackSubmission @relation(fields: [submissionId], references: [id])
+  question   FeedbackQuestion   @relation(fields: [questionId], references: [id])
+
+  @@unique([submissionId, questionId])
+}
+
+model BlockedDate {
+  id         String     @id @default(cuid())
+  date       DateTime   @db.Date
+  timePeriod TimePeriod
+  label      String?
+  isManual   Boolean    @default(false)
+  requestId  String?
+  createdAt  DateTime   @default(now())
+
+  @@unique([date, timePeriod])
+}
+
+model Resource {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String
+  url         String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// ─── Complaints & Feedback Module ─────────────────────────────────────────────
+
+enum ComplaintStatus {
+  pending
+  in_progress
+  resolved
+  closed
+}
+
+enum FeedbackQuestionType {
+  star_rating
+  multiple_choice
+  yes_no
+  short_text
+  long_text
+}
+
+model Complaint {
+  id          String          @id @default(cuid())
+  submittedBy String
+  subject     String
+  description String
+  status      ComplaintStatus @default(pending)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  submitter User               @relation("ComplaintSubmitter", fields: [submittedBy], references: [id])
+  history   ComplaintHistory[]
+}
+
+model ComplaintHistory {
+  id          String          @id @default(cuid())
+  complaintId String
+  status      ComplaintStatus
+  remark      String?
+  updatedById String
+  createdAt   DateTime        @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  updatedBy User      @relation("ComplaintHistoryUpdater", fields: [updatedById], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model EventFeedbackForm {
+  id              String    @id @default(cuid())
+  eventName       String
+  eventDate       DateTime  @db.Date
+  isActive        Boolean   @default(true)
+  allowResubmit   Boolean   @default(false)
+  feedbackOpenAt  DateTime?
+  feedbackCloseAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  questions   EventFeedbackQuestion[]
+  submissions EventFeedbackSubmission[]
+}
+
+model EventFeedbackQuestion {
+  id           String               @id @default(cuid())
+  formId       String
+  questionText String
+  questionType FeedbackQuestionType
+  options      Json?
+  isRequired   Boolean              @default(true)
+  displayOrder Int                  @default(0)
+
+  form      EventFeedbackForm       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  responses EventFeedbackResponse[]
+}
+
+model EventFeedbackSubmission {
+  id          String   @id @default(cuid())
+  formId      String
+  submittedBy String
+  submittedAt DateTime @default(now())
+
+  form      EventFeedbackForm       @relation(fields: [formId], references: [id])
+  submitter User                    @relation("FeedbackSubmitter", fields: [submittedBy], references: [id])
+  responses EventFeedbackResponse[]
+}
+
+model EventFeedbackResponse {
+  id           String @id @default(cuid())
+  submissionId String
+  questionId   String
+  answer       String
+
+  submission EventFeedbackSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   EventFeedbackQuestion   @relation(fields: [questionId], references: [id])
+
+  @@unique([submissionId, questionId])
+}
+
+
+model HrdContact {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  title     String?
+  phone     String?
+  email     String?
+  photoUrl  String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
