@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "quarter and year are required numbers" }, { status: 400 });
   }
   if (quarter < 1 || quarter > 4) {
-    return NextResponse.json({ error: "quarter must be 1â€“4" }, { status: 400 });
+    return NextResponse.json({ error: "quarter must be 1-4" }, { status: 400 });
   }
   if (typeof adjustment !== "number" || adjustment < -2 || adjustment > 2) {
     return NextResponse.json({ error: "adjustment must be between -2 and 2" }, { status: 400 });
