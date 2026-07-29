@@ -5,6 +5,13 @@ import { prisma } from "@/lib/db";
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // Contacts carry personal phone numbers and emails — every page that renders
+  // them is already behind a login, so this endpoint should be too.
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const contacts = await prisma.hrdContact.findMany({
     where: { isActive: true },
     orderBy: [{ order: "asc" }, { name: "asc" }],

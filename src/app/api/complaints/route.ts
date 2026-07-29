@@ -2,12 +2,13 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createNotificationsForRole } from "@/lib/notifications";
+import { hasDrrAccess } from "@/lib/access";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  const user = session?.user as { id?: string; role?: string } | undefined;
+  const user = session?.user as { id?: string; role?: string; email?: string } | undefined;
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = req.nextUrl;
@@ -15,7 +16,11 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const isAdmin = user.role === "HRD" || user.role === "DRR" || user.role === "DEC";
+  // DEC used to be treated as an admin here, which let any avenue DEC read
+  // every complaint in the district — including ones filed about them. The
+  // detail route (/api/complaints/[id]) never allowed that, so this is now
+  // aligned with it: HRD and DRR-level access only.
+  const isAdmin = user.role === "HRD" || hasDrrAccess(user);
 
   const complaints = await prisma.complaint.findMany({
     where: {

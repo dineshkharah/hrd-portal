@@ -13,9 +13,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+        // Emails in the DB are inconsistently cased (some were bulk-imported
+        // with capitals), and browsers happily submit whatever the user typed.
+        // Match exactly first, then fall back to a case-insensitive lookup so
+        // "Sohelskhmail@gmail.com" and "sohelskhmail@gmail.com" both work.
+        const email = (credentials.email as string).trim();
+
+        const user =
+          (await prisma.user.findUnique({ where: { email } })) ??
+          (await prisma.user.findFirst({
+            where: { email: { equals: email, mode: "insensitive" } },
+          }));
 
         if (!user || !user.isActive) return null;
 
