@@ -6,6 +6,12 @@ import { ArrowLeft, ArrowRight, Loader2, CalendarDays, Users, MessageSquare, Che
 
 type OrientationType = "core_member" | "bod" | "everyone";
 type TimePeriod = "morning" | "afternoon" | "evening";
+type OrientationMode = "online" | "offline";
+
+const MODE_OPTIONS: { value: OrientationMode; label: string; desc: string }[] = [
+  { value: "online", label: "Online", desc: "Conducted over a video call" },
+  { value: "offline", label: "Offline", desc: "In person at a venue" },
+];
 
 const TYPE_OPTIONS: { value: OrientationType; label: string; desc: string }[] = [
   { value: "core_member", label: "Core Member", desc: "Orientation for core team members" },
@@ -40,6 +46,9 @@ export default function NewRequestForm({ questionsByType }: Props) {
   const [orientationType, setOrientationType] = useState<OrientationType | "">("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [expectedAttendance, setExpectedAttendance] = useState("");
+  const [mode, setMode] = useState<OrientationMode | "">("");
+  const [venue, setVenue] = useState("");
+  const [timingNote, setTimingNote] = useState("");
   const [slots, setSlots] = useState<DateSlot[]>([
     { date: "", time: "morning" },
     { date: "", time: "afternoon" },
@@ -68,6 +77,14 @@ export default function NewRequestForm({ questionsByType }: Props) {
       setError("Enter expected attendance.");
       return;
     }
+    if (!mode) {
+      setError("Select whether the session is online or offline.");
+      return;
+    }
+    if (mode === "offline" && !venue.trim()) {
+      setError("Enter the venue for the offline session.");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -78,6 +95,9 @@ export default function NewRequestForm({ questionsByType }: Props) {
       body: JSON.stringify({
         orientationType,
         expectedAttendance: Number(expectedAttendance),
+        mode,
+        venue: mode === "offline" ? venue.trim() : null,
+        timingNote: timingNote.trim() || null,
         preferredDate1: slots[0].date,
         preferredTime1: slots[0].time,
         preferredDate2: slots[1].date,
@@ -266,6 +286,67 @@ export default function NewRequestForm({ questionsByType }: Props) {
               </div>
             </div>
           ))}
+
+          <div>
+            <label className="block text-sm text-[#180F04] font-['Geist'] font-medium mb-2">
+              Any other timing on your preferred dates?{" "}
+              <span className="text-[#180F04]/40 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={timingNote}
+              onChange={(e) => setTimingNote(e.target.value)}
+              rows={3}
+              className={inputCls + " resize-none"}
+              placeholder="If any other timing works on the dates above, please type here..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-[#180F04] font-['Geist'] font-medium mb-2">
+              Mode of the session
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setMode(opt.value)}
+                  className={`text-left flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                    mode === opt.value
+                      ? "border-[#D4A017] bg-[#D4A017]/5 shadow-sm"
+                      : "border-black/10 bg-white hover:border-black/20"
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                      mode === opt.value ? "border-[#180F04] bg-[#180F04]" : "border-black/20"
+                    }`}
+                  >
+                    {mode === opt.value && <div className="w-2 h-2 rounded-full bg-[#D4A017]" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-[#180F04] font-['Geist']">{opt.label}</p>
+                    <p className="text-[#180F04]/50 text-xs font-['Geist'] mt-0.5">{opt.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {mode === "offline" && (
+            <div>
+              <label className="block text-sm text-[#180F04] font-['Geist'] font-medium mb-2">
+                Venue
+              </label>
+              <input
+                type="text"
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+                className={inputCls}
+                placeholder="Where will the session be held?"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-[#180F04] font-['Geist'] font-medium mb-2">
