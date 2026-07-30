@@ -17,6 +17,11 @@ const TIME_LABELS: Record<string, string> = {
   evening: "Evening (4pm–8pm)",
 };
 
+const MODE_LABELS: Record<string, string> = {
+  online: "Online",
+  offline: "Offline",
+};
+
 const STATUS_LABELS: Record<string, string> = {
   requested: "Pending Review",
   rejected: "Rejected",
@@ -104,6 +109,18 @@ export default async function HRDRequestDetailPage({
             <p className="text-[#180F04]">{request.expectedAttendance}</p>
           </div>
           <div>
+            <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Mode</p>
+            <p className="text-[#180F04] font-medium">
+              {request.mode ? MODE_LABELS[request.mode] : "—"}
+            </p>
+          </div>
+          {request.mode === "offline" && (
+            <div>
+              <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Venue</p>
+              <p className="text-[#180F04]">{request.venue ?? "—"}</p>
+            </div>
+          )}
+          <div>
             <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Submitted</p>
             <p className="text-[#180F04]">{fmtDate(request.createdAt)}</p>
           </div>
@@ -130,6 +147,17 @@ export default async function HRDRequestDetailPage({
             ))}
           </div>
         </div>
+
+        {request.timingNote && (
+          <div>
+            <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">
+              Other Timing Preference
+            </p>
+            <p className="text-[#180F04] text-sm font-['Geist'] whitespace-pre-wrap">
+              {request.timingNote}
+            </p>
+          </div>
+        )}
 
         {request.rejectionReason && (
           <div>

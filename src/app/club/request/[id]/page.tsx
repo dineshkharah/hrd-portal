@@ -30,6 +30,8 @@ const TYPE_LABELS = {
 
 const TIME_LABELS = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
 
+const MODE_LABELS: Record<string, string> = { online: "Online", offline: "Offline" };
+
 function fmtDate(d: Date | null | string) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
@@ -123,7 +125,26 @@ export default async function ClubRequestDetailPage({
             <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Expected Attendance</p>
             <p className="text-[#180F04]">{request.expectedAttendance}</p>
           </div>
+          <div>
+            <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Mode</p>
+            <p className="text-[#180F04]">{request.mode ? MODE_LABELS[request.mode] : "—"}</p>
+          </div>
+          {request.mode === "offline" && (
+            <div>
+              <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">Venue</p>
+              <p className="text-[#180F04]">{request.venue ?? "—"}</p>
+            </div>
+          )}
         </div>
+
+        {request.timingNote && (
+          <div>
+            <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-1">
+              Other Timing Preference
+            </p>
+            <p className="text-[#180F04] text-sm whitespace-pre-wrap">{request.timingNote}</p>
+          </div>
+        )}
 
         <div>
           <p className="text-[#180F04]/40 text-xs uppercase tracking-wide mb-2">Preferred Dates</p>
