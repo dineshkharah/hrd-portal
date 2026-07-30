@@ -44,6 +44,11 @@ enum TimePeriod {
   evening
 }
 
+enum OrientationMode {
+  online
+  offline
+}
+
 // ─── DCM Performance Tracking Models ─────────────────────────────────────────
 
 model User {
@@ -191,6 +196,12 @@ model OrientationRequest {
   orientationType      OrientationType
   status               OrientationStatus @default(requested)
   expectedAttendance   Int
+
+  // Nullable so existing requests, and HRD's backdated manual entries, stay
+  // valid without a data migration. venue is only meaningful when mode=offline.
+  mode                 OrientationMode?
+  venue                String?
+  timingNote           String?
 
   preferredDate1       DateTime          @db.Date
   preferredTime1       TimePeriod
